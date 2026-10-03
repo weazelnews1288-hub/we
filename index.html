@@ -1,0 +1,1303 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Редактор сайта</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&family=Lora:wght@400;500;600&family=Unbounded:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Макет: липкая панель ролей, панель администратора с вкладками, затем сайт: шапка с меню страниц, блоки выбранной страницы, подвал. */
+  :root {
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --fg: #16161a;
+    --muted: #6a6a75;
+    --line: #e6e6ea;
+    --seg: #ececef;
+    --danger: #d92d20;
+    --primary: #4f46e5;
+    --on-primary: #ffffff;
+    --font-body: 'Onest', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-head: var(--font-body);
+    --head-ls: -.03em;
+    --head-scale: 1;
+    --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+    --radius: 14px;
+  }
+  :root, .scope {
+    --primary-text: var(--primary);
+    --primary-soft: color-mix(in srgb, var(--primary) 9%, var(--bg));
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e0e11; --surface: #17171b; --fg: #f2f2f4; --muted: #9b9ba7; --line: #27272d; --seg: #212127; --danger: #f97066;
+      color-scheme: dark;
+    }
+    :root:not([data-theme="light"]), :root:not([data-theme="light"]) .scope {
+      --primary-text: color-mix(in srgb, var(--primary) 62%, #ffffff);
+      --primary-soft: color-mix(in srgb, var(--primary) 16%, var(--bg));
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e0e11; --surface: #17171b; --fg: #f2f2f4; --muted: #9b9ba7; --line: #27272d; --seg: #212127; --danger: #f97066;
+    color-scheme: dark;
+  }
+  :root[data-theme="dark"], :root[data-theme="dark"] .scope {
+    --primary-text: color-mix(in srgb, var(--primary) 62%, #ffffff);
+    --primary-soft: color-mix(in srgb, var(--primary) 16%, var(--bg));
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: var(--font-body); font-size: 16px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color .25s, color .25s;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+  }
+  :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .muted { color: var(--muted); }
+  .label { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+  /* ---------- Панель ролей ---------- */
+  .rolebar {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; background: var(--seg); border-radius: 10px; max-width: 100%; }
+  .seg button {
+    font: inherit; font-size: .875rem; line-height: 1.2; padding: 7px 12px; border: 0; border-radius: 8px;
+    background: transparent; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .seg button:hover { color: var(--fg); }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(0 0 0 / .1); }
+  .seg.sm button { padding: 5px 10px; font-size: .8125rem; }
+  .status { font-size: .8125rem; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
+  .status[data-bad="true"] { color: var(--danger); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); display: inline-block; flex: none; }
+
+  /* ---------- Панель администратора ---------- */
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px 20px; }
+  .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--surface); cursor: pointer; padding: 0; box-shadow: 0 0 0 1px var(--line); }
+  .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--fg); }
+  input[type="color"] { width: 38px; height: 30px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; }
+  .field {
+    font: inherit; font-size: .875rem; padding: 8px 10px; width: 100%;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg);
+  }
+  .hex { width: 98px; font-family: var(--font-mono); }
+  textarea.field { min-height: 84px; resize: vertical; font-family: var(--font-mono); font-size: .75rem; }
+  .tool-btn {
+    font: inherit; font-size: .875rem; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    padding: 8px 13px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+    transition: border-color .15s, background-color .15s;
+  }
+  .tool-btn:hover:not(:disabled) { border-color: var(--muted); }
+  .tool-btn:disabled { opacity: .4; cursor: default; }
+  .tool-btn.solid { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+  .tool-btn.solid:hover { filter: brightness(1.08); }
+  .tool-btn.danger[data-armed="true"] { color: var(--danger); border-color: var(--danger); }
+  .chip {
+    font: inherit; font-size: .875rem; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+  }
+  .chip[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-text); }
+  .check { display: inline-flex; align-items: center; gap: 8px; font-size: .875rem; cursor: pointer; }
+  .check input { width: 16px; height: 16px; accent-color: var(--primary); }
+  .hint { font-size: .8125rem; color: var(--muted); }
+  kbd { font-family: var(--font-mono); font-size: .75rem; padding: 1px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); }
+  .meter { height: 6px; border-radius: 99px; background: var(--seg); overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--primary); }
+  .meter[data-warn="true"] i { background: var(--danger); }
+  .icon-btn {
+    min-width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+    border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer;
+    font: inherit; font-size: .8125rem;
+  }
+  .icon-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--muted); }
+  .icon-btn:disabled { opacity: .35; cursor: default; }
+  .icon-btn[aria-pressed="true"] { color: var(--primary-text); border-color: var(--primary); background: var(--primary-soft); }
+  .icon-btn.danger[data-armed="true"] { padding: 0 10px; color: var(--danger); border-color: var(--danger); }
+  .tools { display: inline-flex; gap: 6px; flex: none; }
+  .mini {
+    font: inherit; font-size: .75rem; padding: 5px 9px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--fg); cursor: pointer; display: inline-flex; gap: 6px; align-items: center;
+    box-shadow: 0 1px 3px rgb(0 0 0 / .15);
+  }
+  .mini:hover { border-color: var(--muted); }
+
+  /* ---------- Рамка блока в режиме администратора ---------- */
+  .frame { position: relative; border: 1px dashed var(--line); border-radius: calc(var(--radius) + 6px); padding: 10px; margin-block: 12px; min-width: 0; }
+  .frame:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--line)); }
+  .frame-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 2px 10px; }
+  .settings { display: flex; flex-wrap: wrap; gap: 14px 22px; padding: 12px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .choice { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .choice.grow { flex: 1 1 280px; }
+  .addpick { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); }
+  .addpick button {
+    font: inherit; text-align: left; padding: 12px 14px; border-radius: 12px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); color: var(--fg); display: flex; flex-direction: column; gap: 2px;
+    transition: border-color .15s, background-color .15s;
+  }
+  .addpick button:hover { border-color: var(--primary); background: var(--primary-soft); }
+  .addpick small { color: var(--muted); font-size: .75rem; line-height: 1.35; }
+
+  /* ---------- Сайт ---------- */
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-head); font-weight: 650; font-size: 1.125rem; letter-spacing: var(--head-ls); }
+  .mark { width: 16px; height: 16px; border-radius: calc(var(--radius) * .35); background: var(--primary); display: inline-block; flex: none; }
+  .logo { height: 26px; width: auto; max-width: 140px; object-fit: contain; flex: none; }
+  .navlink {
+    font: inherit; font-size: .9375rem; color: var(--muted); background: none; border: 0; padding: 4px 0; cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .navlink:hover { color: var(--fg); }
+  .navlink[aria-current="page"] { color: var(--fg); border-bottom-color: var(--primary); }
+  .rule { border-top: 1px solid var(--line); }
+
+  .blk { display: flex; flex-direction: column; gap: 28px; padding-block: clamp(28px, 5vw, 56px); min-width: 0; }
+  .hero-blk { padding-block: clamp(32px, 7vw, 88px); }
+  .blk.bg-soft, .blk.bg-accent { padding-inline: clamp(20px, 4vw, 40px); border-radius: calc(var(--radius) * 1.6); margin-block: 8px; }
+  .bg-soft { background: var(--primary-soft); }
+  .bg-accent { background: var(--primary); color: var(--on-primary); }
+  .bg-accent .lead, .bg-accent .hero-text, .bg-accent .muted, .bg-accent .cap { color: color-mix(in srgb, var(--on-primary) 82%, transparent); }
+  .bg-accent .eyebrow { color: inherit; opacity: .85; }
+  .bg-accent .btn { background: var(--on-primary); color: var(--primary); }
+  .bg-accent .stat-value { color: inherit; }
+  .bg-accent .editable:hover { outline-color: color-mix(in srgb, var(--on-primary) 60%, transparent); }
+  .bg-accent .editable:focus { outline-color: var(--on-primary); background: color-mix(in srgb, var(--on-primary) 16%, transparent); }
+  .bg-accent .add-tile { color: inherit; border-color: color-mix(in srgb, currentColor 40%, transparent); }
+  .bg-accent .add-tile:hover { color: var(--primary-text); }
+
+  .align-center .head { margin-inline: auto; text-align: center; }
+  .align-center .lead, .align-center .prose, .align-center .faq { margin-inline: auto; }
+  .align-center .btn { align-self: center; }
+  .align-center .stat { text-align: center; }
+
+  .head { display: flex; flex-direction: column; gap: 12px; max-width: 42rem; min-width: 0; }
+  .head:empty { display: none; }
+  .eyebrow { font-family: var(--font-mono); font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; color: var(--primary-text); }
+  .hero-title { font-family: var(--font-head); font-size: calc(clamp(2.1rem, 5.2vw, 3.6rem) * var(--head-scale)); line-height: 1.1; font-weight: 600; letter-spacing: var(--head-ls); text-wrap: balance; overflow-wrap: anywhere; }
+  .hero-text { font-size: 1.125rem; color: var(--muted); max-width: 52ch; }
+  .h2 { font-family: var(--font-head); font-size: calc(clamp(1.5rem, 3vw, 2rem) * var(--head-scale)); line-height: 1.2; font-weight: 600; letter-spacing: var(--head-ls); text-wrap: balance; overflow-wrap: anywhere; }
+  .lead { color: var(--muted); max-width: 56ch; }
+  .prose { max-width: 68ch; font-size: 1.0625rem; }
+  .ml { white-space: pre-wrap; }
+  .btn {
+    font: inherit; font-weight: 500; border: 0; cursor: pointer; display: inline-flex; align-items: center; align-self: flex-start;
+    padding: 12px 22px; border-radius: calc(var(--radius) * .75); background: var(--primary); color: var(--on-primary);
+    text-decoration: none; transition: filter .15s;
+  }
+  a.btn:hover, button.btn:hover { filter: brightness(1.08); }
+
+  .art-wrap { position: relative; justify-self: end; width: 100%; max-width: 340px; }
+  .art { position: relative; width: 100%; aspect-ratio: 1 / 1; }
+  .art i { position: absolute; display: block; }
+  .art .a { inset: 0 22% 22% 0; background: var(--primary); border-radius: calc(var(--radius) * 2.2); }
+  .art .b { right: 0; bottom: 0; width: 58%; height: 58%; border-radius: 50%; background: var(--primary-soft); border: 1px solid var(--line); box-shadow: 0 0 0 8px var(--bg); }
+  .art .c { left: 0; bottom: 0; width: 36%; height: 18%; background-image: radial-gradient(var(--muted) 1.4px, transparent 1.7px); background-size: 12px 12px; opacity: .55; }
+
+  .photo { position: relative; border-radius: var(--radius); overflow: hidden; background: var(--primary-soft); min-width: 0; width: 100%; }
+  .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo.auto img { height: auto; }
+  .photo.auto.empty { min-height: 180px; }
+  .photo-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--primary-text); font-size: .875rem; padding: 12px; text-align: center; }
+  .photo-tools { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .cap { font-size: .875rem; color: var(--muted); }
+  .imgblk { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+  .imgblk.narrow { max-width: 720px; margin-inline: auto; }
+  .fig { display: flex; flex-direction: column; gap: 8px; min-width: 0; margin: 0; }
+
+  .split { display: grid; gap: 32px; align-items: center; }
+  @media (min-width: 768px) { .split.has-media { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .split.left .media { order: -1; }
+
+  .grid-n { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  .grid-n.stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (min-width: 640px) { .grid-n.c2, .grid-n.c3, .grid-n.c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 960px) { .grid-n.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .grid-n.c4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .grid-n.stats.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (min-width: 640px) { .grid-n.stats.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .grid-n.stats.c4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+  .card {
+    background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; transition: border-color .2s;
+  }
+  .card:hover { border-color: color-mix(in srgb, var(--primary) 40%, var(--line)); }
+  .card .photo { border-radius: calc(var(--radius) * .7); }
+  .card h3 { font-family: var(--font-head); font-size: 1.125rem; line-height: 1.35; font-weight: 600; letter-spacing: calc(var(--head-ls) / 2); overflow-wrap: anywhere; }
+  .card p { color: var(--muted); font-size: .9375rem; overflow-wrap: anywhere; }
+  .pill { display: inline-block; font-family: var(--font-mono); font-size: .6875rem; letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary-text); }
+  .add-tile {
+    font: inherit; min-height: 120px; border: 1.5px dashed var(--line); border-radius: var(--radius);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    background: transparent; color: var(--muted); cursor: pointer; transition: border-color .15s, background-color .15s, color .15s;
+  }
+  .add-tile:hover { border-color: var(--primary); color: var(--primary-text); background: var(--primary-soft); }
+
+  .stat { display: flex; flex-direction: column; gap: 4px; padding-top: 14px; min-width: 0; border-top: 2px solid color-mix(in srgb, currentColor 25%, transparent); }
+  .stat-value { font-family: var(--font-head); font-size: calc(clamp(1.75rem, 4vw, 2.5rem) * var(--head-scale)); font-weight: 600; letter-spacing: var(--head-ls); line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--primary-text); overflow-wrap: anywhere; }
+
+  .faq { display: flex; flex-direction: column; max-width: 48rem; width: 100%; }
+  .faq-item { border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent); padding: 16px 0; }
+  .faq-item:last-child { border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent); }
+  .faq-q { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 16px; font: inherit; font-weight: 500; font-size: 1.0625rem; background: none; border: 0; color: inherit; cursor: pointer; padding: 0; }
+  .faq-qt { font-weight: 500; font-size: 1.0625rem; flex: 1; min-width: 0; }
+  .faq-a { margin-top: 8px; color: var(--muted); white-space: pre-wrap; }
+  .bg-accent .faq-a { color: color-mix(in srgb, var(--on-primary) 82%, transparent); }
+  .chev { display: inline-flex; transition: transform .2s; flex: none; }
+  .chev[data-open="true"] { transform: rotate(180deg); }
+
+  .divider { display: flex; align-items: center; }
+  .divider.s { height: 16px; } .divider.m { height: 40px; } .divider.l { height: 88px; }
+  .divider hr { width: 100%; border: 0; border-top: 1px solid var(--line); }
+
+  .toast {
+    position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px)); max-width: calc(100% - 32px);
+    background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: .875rem; box-shadow: 0 6px 24px rgb(0 0 0 / .25);
+  }
+
+  /* ---------- Редактирование на месте ---------- */
+  .editable { outline: 1.5px dashed transparent; outline-offset: 4px; border-radius: 6px; cursor: text; min-width: 2ch; transition: outline-color .15s, background-color .15s; }
+  .editable:hover { outline-color: color-mix(in srgb, var(--primary) 55%, transparent); }
+  .editable:focus { outline: 2px solid var(--primary); outline-offset: 4px; background: var(--primary-soft); }
+  .editable:empty::before { content: attr(data-placeholder); color: var(--muted); opacity: .7; }
+</style>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+
+<div id="root"></div>
+
+<!-- Применяет сохранённые тему, цвет, шрифт и скругление до первой отрисовки React -->
+<script>
+(function () {
+  var HEX = /^#[0-9a-f]{6}$/i;
+  var SANS = "system-ui,-apple-system,'Segoe UI',sans-serif";
+  var FONTS = {
+    modern:   { label: 'Современный',    body: "'Onest'," + SANS,    head: "'Onest'," + SANS,              ls: '-.03em', scale: 1 },
+    strict:   { label: 'Строгий',        body: "'Manrope'," + SANS,  head: "'Manrope'," + SANS,            ls: '-.03em', scale: 1 },
+    magazine: { label: 'Журнал',         body: "'Onest'," + SANS,    head: "'Playfair Display',Georgia,serif", ls: '-.01em', scale: 1.05 },
+    classic:  { label: 'Классика',       body: "'Lora',Georgia,serif", head: "'Lora',Georgia,serif",       ls: '-.01em', scale: 1 },
+    bold:     { label: 'Выразительный',  body: "'Onest'," + SANS,    head: "'Unbounded','Onest'," + SANS,  ls: '-.02em', scale: .78 }
+  };
+  function lin(v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+  function onColor(h) {
+    var n = parseInt(h.slice(1), 16);
+    var L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+    return 1.05 / (L + 0.05) >= (L + 0.05) / 0.05 ? '#ffffff' : '#111114';
+  }
+  window.siteTheme = {
+    fonts: FONTS,
+    on: onColor,
+    apply: function (cfg) {
+      cfg = cfg || {};
+      var r = document.documentElement, f = FONTS[cfg.font] || FONTS.modern;
+      var hex = HEX.test(cfg.primary || '') ? cfg.primary : '#4f46e5';
+      var rad = [0, 8, 14, 24].indexOf(cfg.radius) >= 0 ? cfg.radius : 14;
+      r.setAttribute('data-theme', cfg.theme === 'dark' ? 'dark' : 'light');
+      r.style.setProperty('--primary', hex);
+      r.style.setProperty('--on-primary', onColor(hex));
+      r.style.setProperty('--font-body', f.body);
+      r.style.setProperty('--font-head', f.head);
+      r.style.setProperty('--head-ls', f.ls);
+      r.style.setProperty('--head-scale', String(f.scale));
+      r.style.setProperty('--radius', rad + 'px');
+    }
+  };
+  try { window.siteTheme.apply(JSON.parse(localStorage.getItem('site-config-v2') || localStorage.getItem('site-config-v1') || 'null')); }
+  catch (e) { window.siteTheme.apply(null); }
+})();
+</script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useLayoutEffect, useRef, useContext } = React;
+
+const KEY = 'site-config-v2';
+const OLD_KEY = 'site-config-v1';
+const ROLE_KEY = 'site-role-v1';
+const HEX = /^#[0-9a-f]{6}$/i;
+const QUOTA_CHARS = 5000000;
+const uid = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
+const mk = (o) => ({ id: uid(), ...o });
+const clone = (o) => JSON.parse(JSON.stringify(o));
+function reid(o) {
+  if (Array.isArray(o)) return o.map(reid);
+  if (o && typeof o === 'object') { const n = {}; for (const k in o) n[k] = k === 'id' ? uid() : reid(o[k]); return n; }
+  return o;
+}
+function moved(arr, id, dir) {
+  const i = arr.findIndex((x) => x.id === id), j = i + dir;
+  if (i < 0 || j < 0 || j >= arr.length) return arr;
+  const a = [...arr]; [a[i], a[j]] = [a[j], a[i]]; return a;
+}
+const nowTime = () => new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+/* ---------- Типы блоков ---------- */
+const TYPES = {
+  hero:    { name: 'Главный экран',     hint: 'Заголовок, текст, кнопка и рисунок или фото' },
+  text:    { name: 'Текст',             hint: 'Заголовок и абзацы' },
+  cards:   { name: 'Карточки',          hint: 'Сетка карточек, у каждой можно добавить фото' },
+  image:   { name: 'Фото',              hint: 'Одно большое изображение с подписью' },
+  split:   { name: 'Фото и текст',      hint: 'Изображение рядом с текстом' },
+  gallery: { name: 'Галерея',           hint: 'Несколько фотографий с подписями' },
+  stats:   { name: 'Цифры',             hint: 'Ключевые показатели' },
+  faq:     { name: 'Вопросы и ответы',  hint: 'Раскрывающийся список' },
+  cta:     { name: 'Призыв к действию', hint: 'Яркий блок с кнопкой' },
+  divider: { name: 'Разделитель',       hint: 'Отступ или линия' },
+};
+const NEW = {
+  hero: () => ({ eyebrow: 'Надзаголовок', title: 'Заголовок страницы', text: 'Короткое описание того, что находится на этой странице.', btn: { label: 'Подробнее', link: '' }, image: null }),
+  text: () => ({ title: 'Заголовок раздела', text: 'Напишите здесь текст. Абзацы разделяйте переносом строки.' }),
+  cards: () => ({ title: 'Заголовок раздела', lead: 'Короткое пояснение к карточкам.', cols: 3, items: [
+    mk({ tag: 'Метка', title: 'Первая карточка', text: 'Описание карточки.', image: null }),
+    mk({ tag: 'Метка', title: 'Вторая карточка', text: 'Описание карточки.', image: null }),
+    mk({ tag: 'Метка', title: 'Третья карточка', text: 'Описание карточки.', image: null }) ] }),
+  image: () => ({ src: null, caption: '', width: 'wide', ratio: '16/9' }),
+  split: () => ({ title: 'Заголовок', text: 'Расскажите о проекте, продукте или команде рядом с фотографией.', image: null, side: 'right' }),
+  gallery: () => ({ title: 'Галерея', lead: '', cols: 3, items: [] }),
+  stats: () => ({ title: '', lead: '', cols: 3, items: [
+    mk({ value: '120+', label: 'выполненных проектов' }), mk({ value: '8 лет', label: 'на рынке' }), mk({ value: '24 ч', label: 'время ответа' }) ] }),
+  faq: () => ({ title: 'Частые вопросы', lead: '', items: [
+    mk({ q: 'Первый вопрос', a: 'Ответ на первый вопрос.' }), mk({ q: 'Второй вопрос', a: 'Ответ на второй вопрос.' }) ] }),
+  cta: () => ({ title: 'Готовы начать?', text: 'Напишите нам, и мы обсудим вашу задачу.', btn: { label: 'Связаться', link: '' } }),
+  divider: () => ({ size: 'm', line: true }),
+};
+function newBlock(type) {
+  return { id: uid(), type, bg: type === 'cta' ? 'accent' : 'none', align: type === 'cta' ? 'center' : 'left', ...NEW[type]() };
+}
+const isEmpty = (b) => {
+  switch (b.type) {
+    case 'image': return !b.src && !b.caption;
+    case 'gallery': case 'stats': case 'faq': return !b.items.length;
+    case 'cards': return !b.items.length && !b.title;
+    case 'text': return !b.title && !b.text;
+    case 'split': return !b.title && !b.text && !b.image;
+    default: return false;
+  }
+};
+
+/* ---------- Данные по умолчанию, проверка и перенос ---------- */
+function makeDefault() {
+  const hero = Object.assign(newBlock('hero'), {
+    eyebrow: 'Студия цифровых продуктов',
+    title: 'Делаем сайты, которыми удобно пользоваться',
+    text: 'Небольшая команда дизайнеров и разработчиков. Берём задачу от первого наброска до запуска и сопровождаем проект после релиза.',
+    btn: { label: 'Обсудить проект', link: 'page:contact' },
+  });
+  const cards = Object.assign(newBlock('cards'), {
+    title: 'Чем мы занимаемся', lead: 'Три направления, в которых у нас больше всего опыта.',
+    items: [
+      mk({ tag: 'Дизайн', title: 'Интерфейсы и айдентика', text: 'Прототипы, дизайн-системы и фирменный стиль, которые легко развивать.', image: null }),
+      mk({ tag: 'Разработка', title: 'Сайты и веб-приложения', text: 'Быстрая вёрстка, чистый код и аккуратная работа с контентом.', image: null }),
+      mk({ tag: 'Поддержка', title: 'Развитие после запуска', text: 'Исправляем, обновляем и улучшаем сайт по мере роста проекта.', image: null }),
+    ],
+  });
+  const stats = Object.assign(newBlock('stats'), { bg: 'soft', items: [
+    mk({ value: '40+', label: 'запущенных проектов' }), mk({ value: '6 лет', label: 'работаем вместе' }), mk({ value: '2 дня', label: 'отвечаем на заявку' }) ] });
+  const cta = Object.assign(newBlock('cta'), { title: 'Есть задача? Расскажите о ней', text: 'Напишите нам, и мы предложим план работы.', btn: { label: 'Связаться с нами', link: 'page:contact' } });
+  const split = Object.assign(newBlock('split'), {
+    title: 'Небольшая команда, которая отвечает за результат',
+    text: 'Мы работаем без лишних посредников: с вами общаются те, кто рисует и пишет код.\n\nКаждый проект ведёт один человек от первой встречи до запуска.',
+  });
+  const how = Object.assign(newBlock('text'), {
+    title: 'Как мы работаем',
+    text: 'Сначала разбираемся в задаче и целях. Потом собираем прототип и показываем его до начала разработки.\n\nНа запуске остаёмся рядом: исправляем мелочи и помогаем с первыми обновлениями.',
+  });
+  const hello = Object.assign(newBlock('text'), { title: 'Напишите нам', text: 'Расскажите, что нужно сделать, и мы ответим в течение двух рабочих дней. Адрес почты указан внизу страницы.' });
+  const faq = Object.assign(newBlock('faq'), { title: 'Частые вопросы', items: [
+    mk({ q: 'Сколько занимает работа над сайтом?', a: 'Небольшой сайт мы делаем за две–четыре недели. Точный срок называем после первого разговора.' }),
+    mk({ q: 'Можно ли менять сайт самому?', a: 'Да. Мы настраиваем сайт так, чтобы тексты, фото и страницы вы могли менять без разработчика.' }),
+    mk({ q: 'Вы поддерживаете сайт после запуска?', a: 'Да, по отдельному соглашению. Исправляем ошибки и помогаем с обновлениями.' }) ] });
+  return {
+    v: 2, theme: 'light', primary: '#4f46e5', font: 'modern', radius: 14,
+    brand: 'Атлас', logo: null, contact: 'hello@example.com', footer: '© 2026 Атлас. Все права защищены.',
+    pages: [
+      { id: 'home', title: 'Главная', nav: true, accent: null, blocks: [hero, cards, stats, cta] },
+      { id: 'about', title: 'О нас', nav: true, accent: null, blocks: [split, how] },
+      { id: 'contact', title: 'Контакты', nav: true, accent: null, blocks: [hello, faq] },
+    ],
+  };
+}
+const cleanImg = (v) => (typeof v === 'string' && v.startsWith('data:image/') ? v : null);
+function normBlock(b) {
+  if (!b || typeof b !== 'object' || !NEW[b.type]) return null;
+  const base = newBlock(b.type);
+  const out = { ...base, ...b, id: typeof b.id === 'string' ? b.id : uid() };
+  if (!['none', 'soft', 'accent'].includes(out.bg)) out.bg = 'none';
+  if (!['left', 'center'].includes(out.align)) out.align = 'left';
+  if ('cols' in base && ![2, 3, 4].includes(out.cols)) out.cols = 3;
+  if (base.btn) out.btn = { ...base.btn, ...(b.btn && typeof b.btn === 'object' ? b.btn : {}) };
+  if ('image' in base) out.image = cleanImg(out.image);
+  if ('src' in base) out.src = cleanImg(out.src);
+  for (const k of Object.keys(base)) {
+    if (Array.isArray(base[k])) {
+      out[k] = (Array.isArray(out[k]) ? out[k] : []).filter((x) => x && typeof x === 'object')
+        .map((x) => ({ ...x, id: typeof x.id === 'string' ? x.id : uid(), ...('image' in x ? { image: cleanImg(x.image) } : {}), ...('src' in x ? { src: cleanImg(x.src) } : {}) }));
+    }
+  }
+  return out;
+}
+function sanitize(p) {
+  const d = makeDefault();
+  if (!p || typeof p !== 'object' || !Array.isArray(p.pages) || !p.pages.length) return d;
+  const s = (v, f) => (typeof v === 'string' ? v : f);
+  const pages = p.pages.filter((x) => x && typeof x === 'object').map((pg) => ({
+    id: s(pg.id, uid()), title: s(pg.title, 'Страница'), nav: pg.nav !== false,
+    accent: typeof pg.accent === 'string' && HEX.test(pg.accent) ? pg.accent : null,
+    blocks: Array.isArray(pg.blocks) ? pg.blocks.map(normBlock).filter(Boolean) : [],
+  }));
+  return {
+    v: 2,
+    theme: p.theme === 'dark' ? 'dark' : 'light',
+    primary: typeof p.primary === 'string' && HEX.test(p.primary) ? p.primary : d.primary,
+    font: window.siteTheme.fonts[p.font] ? p.font : 'modern',
+    radius: [0, 8, 14, 24].includes(p.radius) ? p.radius : 14,
+    brand: s(p.brand, d.brand), logo: cleanImg(p.logo), contact: s(p.contact, d.contact), footer: s(p.footer, d.footer),
+    pages: pages.length ? pages : d.pages,
+  };
+}
+function migrateV1(o) {
+  const c = makeDefault();
+  if (o.theme === 'dark') c.theme = 'dark';
+  if (typeof o.primary === 'string' && HEX.test(o.primary)) c.primary = o.primary;
+  if (typeof o.brand === 'string') c.brand = o.brand;
+  if (typeof o.contact === 'string') c.contact = o.contact;
+  if (typeof o.footer === 'string') c.footer = o.footer;
+  const home = c.pages[0];
+  const hero = home.blocks.find((b) => b.type === 'hero');
+  if (o.hero && hero) {
+    hero.eyebrow = o.hero.eyebrow ?? hero.eyebrow; hero.title = o.hero.title ?? hero.title;
+    hero.text = o.hero.text ?? hero.text; hero.btn.label = o.hero.cta ?? hero.btn.label;
+  }
+  const cards = home.blocks.find((b) => b.type === 'cards');
+  if (Array.isArray(o.cards) && cards) {
+    cards.title = o.cardsTitle ?? cards.title; cards.lead = o.cardsLead ?? cards.lead;
+    cards.items = o.cards.map((x) => mk({ tag: x.tag || '', title: x.title || '', text: x.text || '', image: null }));
+  }
+  return sanitize(c);
+}
+function loadConfig() {
+  if (window.__BOOT && window.__BOOT.cfg) { try { return sanitize(window.__BOOT.cfg); } catch (e) {} return makeDefault(); }
+  if (window.__BOOT) return makeDefault();
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) return sanitize(JSON.parse(raw));
+    const old = localStorage.getItem(OLD_KEY);
+    if (old) return migrateV1(JSON.parse(old));
+  } catch (e) {}
+  return makeDefault();
+}
+function loadRole() {
+  if (window.__BOOT) return window.__BOOT.user ? 'admin' : 'viewer';
+  try { return localStorage.getItem(ROLE_KEY) === 'viewer' ? 'viewer' : 'admin'; } catch (e) { return 'admin'; }
+}
+
+/* ---------- Фото: сжатие и сохранение как data URL ---------- */
+async function fileToDataUrl(file, { max = 1200, type = 'image/jpeg', q = 0.72, limit = 280000 } = {}) {
+  const src = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+  const iw = img.naturalWidth || 300, ih = img.naturalHeight || 300;
+  let side = max, out = '';
+  for (let n = 0; n < 5; n++) {
+    const k = Math.min(1, side / Math.max(iw, ih));
+    const w = Math.max(1, Math.round(iw * k)), h = Math.max(1, Math.round(ih * k));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    if (type === 'image/jpeg') { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); }
+    x.drawImage(img, 0, 0, w, h);
+    out = c.toDataURL(type, q);
+    if (out.length <= limit) break;
+    side = Math.round(side * 0.75);
+  }
+  return out;
+}
+
+/* ---------- Контекст ---------- */
+const Ctx = React.createContext(null);
+const useCtx = () => useContext(Ctx);
+
+/* ---------- Иконки ---------- */
+const PATHS = {
+  up: <path d="M5 12l5-5 5 5" />, down: <path d="M5 8l5 5 5-5" />,
+  left: <path d="M12 5l-5 5 5 5" />, right: <path d="M8 5l5 5-5 5" />,
+  plus: <path d="M10 4v12M4 10h12" />,
+  trash: <path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10" />,
+  sun: <><circle cx="10" cy="10" r="3.2" /><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" /></>,
+  moon: <path d="M16 11.5A6.5 6.5 0 018.5 4a6.5 6.5 0 107.5 7.5z" />,
+  reset: <><path d="M4.5 10a5.5 5.5 0 105.5-5.5H7.5" /><path d="M9.5 2.5l-2 2 2 2" /></>,
+  image: <><rect x="3" y="4" width="14" height="12" rx="2" /><circle cx="7.5" cy="8.5" r="1.2" /><path d="M4 15l4-4 3 3 2-2 3 3" /></>,
+  sliders: <><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.5" /><circle cx="6.5" cy="14" r="1.5" /></>,
+  copy: <><rect x="7" y="7" width="9" height="9" rx="2" /><path d="M13 7V5a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2" /></>,
+  upload: <path d="M10 13V4M6.5 7.5L10 4l3.5 3.5M4 14v2h12v-2" />,
+};
+function Icon({ n, size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{PATHS[n]}</svg>
+  );
+}
+
+/* ---------- Текст, редактируемый на месте ---------- */
+const PLAIN = (() => { try { const d = document.createElement('div'); d.contentEditable = 'plaintext-only'; return d.contentEditable === 'plaintext-only'; } catch (e) { return false; } })();
+
+function Editable({ value, onChange, as: Tag = 'span', className = '', placeholder = 'Введите текст', label, multiline = false, hideEmpty = true }) {
+  const { admin } = useCtx();
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && el.textContent !== value && document.activeElement !== el) el.textContent = value;
+  }, [value, admin]);
+
+  if (!admin) {
+    if (hideEmpty && !value) return null;
+    return <Tag className={className + (multiline ? ' ml' : '')}>{value}</Tag>;
+  }
+  const commit = (el) => {
+    let t = el.innerText.replace(/\r/g, '');
+    t = multiline ? t.replace(/\n{3,}/g, '\n\n').trim() : t.replace(/\s+/g, ' ').trim();
+    if (t !== value) onChange(t); else el.textContent = value;
+  };
+  return (
+    <Tag
+      ref={ref}
+      className={className + (multiline ? ' ml' : '') + ' editable'}
+      contentEditable={PLAIN ? 'plaintext-only' : true}
+      suppressContentEditableWarning
+      spellCheck={false}
+      role="textbox"
+      aria-multiline={multiline}
+      aria-label={label || placeholder}
+      data-placeholder={placeholder}
+      onBlur={(e) => commit(e.currentTarget)}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') { e.currentTarget.textContent = value; e.currentTarget.blur(); return; }
+        if (e.key === 'Enter' && (!multiline || e.ctrlKey || e.metaKey)) { e.preventDefault(); e.currentTarget.blur(); }
+      }}
+      onPaste={(e) => {
+        e.preventDefault();
+        let text = (e.clipboardData || window.clipboardData).getData('text');
+        text = multiline ? text.replace(/\r/g, '') : text.replace(/\s+/g, ' ');
+        if (!document.execCommand('insertText', false, text)) e.currentTarget.textContent += text;
+      }}
+    />
+  );
+}
+
+/* ---------- Мелкие общие компоненты ---------- */
+function Confirm({ onConfirm, label, text, confirmText = 'Удалить?', disabled, variant = 'icon' }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 3000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  const click = () => { if (armed) { setArmed(false); onConfirm(); } else setArmed(true); };
+  if (variant === 'tool') {
+    return (
+      <button type="button" className="tool-btn danger" data-armed={armed} disabled={disabled} onClick={click}>
+        <Icon n="trash" />{armed ? confirmText : text}
+      </button>
+    );
+  }
+  return (
+    <button type="button" className="icon-btn danger" data-armed={armed} disabled={disabled}
+      aria-label={armed ? 'Подтвердить удаление' : label} title={armed ? 'Нажмите ещё раз, чтобы удалить' : label} onClick={click}>
+      {armed ? confirmText : <Icon n="trash" />}
+    </button>
+  );
+}
+
+function ItemTools({ i, count, onMove, onRemove, what }) {
+  return (
+    <div className="tools">
+      <button type="button" className="icon-btn" disabled={i === 0} aria-label={'Сдвинуть раньше: ' + what} title="Сдвинуть раньше" onClick={() => onMove(-1)}><Icon n="up" /></button>
+      <button type="button" className="icon-btn" disabled={i === count - 1} aria-label={'Сдвинуть позже: ' + what} title="Сдвинуть позже" onClick={() => onMove(1)}><Icon n="down" /></button>
+      <Confirm label={'Удалить: ' + what} onConfirm={onRemove} />
+    </div>
+  );
+}
+
+function PickButton({ onPick, multiple = false, className = 'mini', opts, children }) {
+  const { upload } = useCtx();
+  const ref = useRef(null);
+  const onChange = async (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    for (const f of files) { const url = await upload(f, opts); if (url) onPick(url); }
+  };
+  return (
+    <>
+      <input ref={ref} type="file" accept="image/*" multiple={multiple} hidden onChange={onChange} />
+      <button type="button" className={className} onClick={() => ref.current && ref.current.click()}>{children}</button>
+    </>
+  );
+}
+
+function Photo({ src, onChange, ratio = '16/9', alt = '', clearLabel = 'Убрать', empty = 'Добавить фото' }) {
+  const { admin } = useCtx();
+  if (!src && !admin) return null;
+  const auto = ratio === 'auto';
+  return (
+    <div className={'photo' + (auto ? ' auto' : '') + (src ? '' : ' empty')} style={auto ? undefined : { aspectRatio: ratio }}>
+      {src ? <img src={src} alt={alt} /> : <div className="photo-empty"><Icon n="image" size={24} /><span>{empty}</span></div>}
+      {admin && (
+        <div className="photo-tools">
+          <PickButton onPick={onChange}><Icon n="upload" size={14} />{src ? 'Заменить' : 'Загрузить'}</PickButton>
+          {src && <button type="button" className="mini" onClick={() => onChange(null)}>{clearLabel}</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Кнопки-ссылки ---------- */
+function parseLink(l) {
+  if (!l) return null;
+  if (l.startsWith('page:')) return { page: l.slice(5) };
+  if (l.startsWith('url:')) { const u = l.slice(4); return /^https?:\/\//i.test(u) ? { url: u } : null; }
+  return null;
+}
+function Btn({ btn, onChange }) {
+  const { admin, go, pages } = useCtx();
+  if (admin) return <Editable as="div" className="btn" value={btn.label} placeholder="Текст кнопки" hideEmpty={false} onChange={(v) => onChange({ ...btn, label: v })} />;
+  const t = parseLink(btn.link);
+  if (!btn.label || !t) return null;
+  if (t.page) return pages.some((p) => p.id === t.page) ? <button type="button" className="btn" onClick={() => go(t.page)}>{btn.label}</button> : null;
+  return <a className="btn" href={t.url} target="_blank" rel="noopener noreferrer">{btn.label}</a>;
+}
+function LinkEditor({ value, onChange }) {
+  const { pages } = useCtx();
+  const v = value || '';
+  const isUrl = v.startsWith('url:');
+  return (
+    <div className="choice grow">
+      <span className="label">Куда ведёт кнопка</span>
+      <div className="flex flex-wrap gap-2">
+        <select className="field" style={{ width: 'auto', minWidth: 190 }} aria-label="Куда ведёт кнопка" value={isUrl ? 'url' : v}
+          onChange={(e) => onChange(e.target.value === 'url' ? 'url:https://' : e.target.value)}>
+          <option value="">Никуда (у гостей кнопка скрыта)</option>
+          {pages.map((p) => <option key={p.id} value={'page:' + p.id}>Страница: {p.title || 'Без названия'}</option>)}
+          <option value="url">Внешняя ссылка</option>
+        </select>
+        {isUrl && (
+          <input className="field" style={{ width: 'auto', flex: '1 1 200px' }} aria-label="Адрес ссылки" placeholder="https://example.com" value={v.slice(4)}
+            onChange={(e) => onChange('url:' + e.target.value)}
+            onBlur={(e) => { const t = e.target.value.trim(); if (t && !/^https?:\/\//i.test(t)) onChange('url:https://' + t.replace(/^[a-z]+:\/\//i, '')); }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Настройки блока ---------- */
+function Choice({ label, value, options, onChange }) {
+  return (
+    <div className="choice">
+      <span className="label">{label}</span>
+      <div className="seg sm" role="group" aria-label={label}>
+        {options.map(([v, t]) => <button key={v} type="button" aria-pressed={String(value) === String(v)} onClick={() => onChange(v)}>{t}</button>)}
+      </div>
+    </div>
+  );
+}
+const ALIGNABLE = ['text', 'cards', 'gallery', 'stats', 'faq', 'cta'];
+const HAS_COLS = ['cards', 'gallery', 'stats'];
+function Settings({ b, patch }) {
+  const t = b.type;
+  return (
+    <div className="settings">
+      {t !== 'divider' && <Choice label="Фон блока" value={b.bg} onChange={(v) => patch({ bg: v })} options={[['none', 'Без фона'], ['soft', 'Светлый'], ['accent', 'Цвет страницы']]} />}
+      {ALIGNABLE.includes(t) && <Choice label="Выравнивание" value={b.align} onChange={(v) => patch({ align: v })} options={[['left', 'Слева'], ['center', 'По центру']]} />}
+      {HAS_COLS.includes(t) && <Choice label="Колонок" value={b.cols} onChange={(v) => patch({ cols: Number(v) })} options={[['2', '2'], ['3', '3'], ['4', '4']]} />}
+      {t === 'image' && <Choice label="Ширина" value={b.width} onChange={(v) => patch({ width: v })} options={[['narrow', 'Узкое'], ['wide', 'Широкое']]} />}
+      {t === 'image' && <Choice label="Пропорции" value={b.ratio} onChange={(v) => patch({ ratio: v })} options={[['16/9', '16:9'], ['4/3', '4:3'], ['1/1', '1:1'], ['auto', 'Как у файла']]} />}
+      {t === 'split' && <Choice label="Фото" value={b.side} onChange={(v) => patch({ side: v })} options={[['left', 'Слева'], ['right', 'Справа']]} />}
+      {t === 'divider' && <Choice label="Высота" value={b.size} onChange={(v) => patch({ size: v })} options={[['s', 'Малая'], ['m', 'Средняя'], ['l', 'Большая']]} />}
+      {t === 'divider' && <Choice label="Линия" value={b.line ? 'yes' : 'no'} onChange={(v) => patch({ line: v === 'yes' })} options={[['yes', 'Есть'], ['no', 'Нет']]} />}
+      {(t === 'hero' || t === 'cta') && <LinkEditor value={b.btn.link} onChange={(l) => patch((c) => ({ btn: { ...c.btn, link: l } }))} />}
+    </div>
+  );
+}
+function BlockFrame({ b, i, count, act, pageId, children }) {
+  const [open, setOpen] = useState(false);
+  const patch = (f) => act.patch(pageId, b.id, f);
+  return (
+    <div className="frame">
+      <div className="frame-bar">
+        <span className="label">{TYPES[b.type].name}</span>
+        <div className="tools">
+          <button type="button" className="icon-btn" aria-pressed={open} aria-label="Настройки блока" title="Настройки блока" onClick={() => setOpen((o) => !o)}><Icon n="sliders" /></button>
+          <button type="button" className="icon-btn" disabled={i === 0} aria-label="Поднять блок выше" title="Выше" onClick={() => act.move(pageId, b.id, -1)}><Icon n="up" /></button>
+          <button type="button" className="icon-btn" disabled={i === count - 1} aria-label="Опустить блок ниже" title="Ниже" onClick={() => act.move(pageId, b.id, 1)}><Icon n="down" /></button>
+          <button type="button" className="icon-btn" aria-label="Дублировать блок" title="Дублировать" onClick={() => act.dup(pageId, b.id)}><Icon n="copy" /></button>
+          <Confirm label="Удалить блок" onConfirm={() => act.remove(pageId, b.id)} />
+        </div>
+      </div>
+      {open && <Settings b={b} patch={patch} />}
+      {children}
+    </div>
+  );
+}
+
+/* ---------- Блоки ---------- */
+const listOps = (patch, key) => ({
+  add: (item) => patch((c) => ({ [key]: [...c[key], mk(item)] })),
+  update: (id, f) => patch((c) => ({ [key]: c[key].map((x) => (x.id === id ? { ...x, ...f } : x)) })),
+  remove: (id) => patch((c) => ({ [key]: c[key].filter((x) => x.id !== id) })),
+  move: (id, d) => patch((c) => ({ [key]: moved(c[key], id, d) })),
+});
+function Head({ b, patch }) {
+  return (
+    <div className="head">
+      <Editable as="h2" className="h2" value={b.title} placeholder="Заголовок раздела" onChange={(v) => patch({ title: v })} />
+      <Editable as="p" className="lead" value={b.lead || ''} multiline placeholder="Подзаголовок" onChange={(v) => patch({ lead: v })} />
+    </div>
+  );
+}
+function AddTile({ onClick, children, min }) {
+  return <button type="button" className="add-tile" style={min ? { minHeight: min } : undefined} onClick={onClick}><Icon n="plus" size={20} /><span>{children}</span></button>;
+}
+
+function Hero({ b, patch }) {
+  const { admin } = useCtx();
+  return (
+    <div className="grid items-center gap-10 md:grid-cols-[1.3fr_1fr]">
+      <div className="flex min-w-0 flex-col gap-6">
+        <Editable as="p" className="eyebrow" value={b.eyebrow} placeholder="Надзаголовок" onChange={(v) => patch({ eyebrow: v })} />
+        <Editable as="h1" className="hero-title" value={b.title} placeholder="Заголовок" onChange={(v) => patch({ title: v })} />
+        <Editable as="p" className="hero-text" value={b.text} multiline placeholder="Описание" onChange={(v) => patch({ text: v })} />
+        <Btn btn={b.btn} onChange={(btn) => patch({ btn })} />
+      </div>
+      {b.image ? (
+        <Photo src={b.image} ratio="4/3" onChange={(v) => patch({ image: v })} />
+      ) : (
+        <div className={'art-wrap ' + (admin ? '' : 'hidden md:block')}>
+          <div className="art" aria-hidden="true"><i className="c" /><i className="a" /><i className="b" /></div>
+          {admin && <div className="photo-tools"><PickButton onPick={(u) => patch({ image: u })}><Icon n="image" size={14} />Заменить рисунок на фото</PickButton></div>}
+        </div>
+      )}
+    </div>
+  );
+}
+function TextBlock({ b, patch }) {
+  return (
+    <>
+      <div className="head"><Editable as="h2" className="h2" value={b.title} placeholder="Заголовок" onChange={(v) => patch({ title: v })} /></div>
+      <Editable as="div" className="prose" value={b.text} multiline placeholder="Текст" onChange={(v) => patch({ text: v })} />
+    </>
+  );
+}
+function Cards({ b, patch }) {
+  const { admin } = useCtx();
+  const L = listOps(patch, 'items');
+  return (
+    <>
+      <Head b={b} patch={patch} />
+      <div className={'grid-n c' + b.cols}>
+        {b.items.map((c, i) => (
+          <article className="card" key={c.id}>
+            {c.image
+              ? <Photo src={c.image} ratio="16/10" onChange={(v) => L.update(c.id, { image: v })} />
+              : admin && <PickButton className="mini self-start" onPick={(u) => L.update(c.id, { image: u })}><Icon n="image" size={14} />Добавить фото</PickButton>}
+            {(admin || c.tag) && (
+              <div className="flex items-start justify-between gap-2">
+                <Editable as="span" className="pill" value={c.tag} placeholder="Метка" onChange={(v) => L.update(c.id, { tag: v })} />
+                {admin && <ItemTools i={i} count={b.items.length} what="карточка" onMove={(d) => L.move(c.id, d)} onRemove={() => L.remove(c.id)} />}
+              </div>
+            )}
+            <Editable as="h3" value={c.title} placeholder="Заголовок" onChange={(v) => L.update(c.id, { title: v })} />
+            <Editable as="p" value={c.text} multiline placeholder="Описание" onChange={(v) => L.update(c.id, { text: v })} />
+          </article>
+        ))}
+        {admin && <AddTile min={160} onClick={() => L.add({ tag: 'Метка', title: 'Новая карточка', text: 'Описание карточки.', image: null })}>Добавить карточку</AddTile>}
+      </div>
+    </>
+  );
+}
+function ImageBlock({ b, patch }) {
+  return (
+    <div className={'imgblk ' + b.width}>
+      <Photo src={b.src} ratio={b.ratio} alt={b.caption} onChange={(v) => patch({ src: v })} />
+      <Editable as="p" className="cap" value={b.caption} placeholder="Подпись к фото" onChange={(v) => patch({ caption: v })} />
+    </div>
+  );
+}
+function Split({ b, patch }) {
+  const { admin } = useCtx();
+  const media = !!b.image || admin;
+  return (
+    <div className={'split ' + b.side + (media ? ' has-media' : '')}>
+      <div className="flex min-w-0 flex-col gap-4">
+        <Editable as="h2" className="h2" value={b.title} placeholder="Заголовок" onChange={(v) => patch({ title: v })} />
+        <Editable as="div" className="prose" value={b.text} multiline placeholder="Текст" onChange={(v) => patch({ text: v })} />
+      </div>
+      {media && <div className="media"><Photo src={b.image} ratio="4/3" onChange={(v) => patch({ image: v })} /></div>}
+    </div>
+  );
+}
+function Gallery({ b, patch }) {
+  const { admin } = useCtx();
+  const L = listOps(patch, 'items');
+  return (
+    <>
+      <Head b={b} patch={patch} />
+      <div className={'grid-n c' + b.cols}>
+        {b.items.map((it) => (
+          <figure className="fig" key={it.id}>
+            <Photo src={it.src} ratio="4/3" clearLabel="Удалить" onChange={(v) => (v ? L.update(it.id, { src: v }) : L.remove(it.id))} />
+            <Editable as="figcaption" className="cap" value={it.caption} placeholder="Подпись" onChange={(v) => L.update(it.id, { caption: v })} />
+          </figure>
+        ))}
+        {admin && <PickButton multiple className="add-tile" onPick={(u) => L.add({ src: u, caption: '' })}><Icon n="plus" size={20} /><span>Добавить фото</span></PickButton>}
+      </div>
+    </>
+  );
+}
+function Stats({ b, patch }) {
+  const { admin } = useCtx();
+  const L = listOps(patch, 'items');
+  return (
+    <>
+      <Head b={b} patch={patch} />
+      <div className={'grid-n stats c' + b.cols}>
+        {b.items.map((s, i) => (
+          <div className="stat" key={s.id}>
+            {admin && <div className="flex justify-end"><ItemTools i={i} count={b.items.length} what="показатель" onMove={(d) => L.move(s.id, d)} onRemove={() => L.remove(s.id)} /></div>}
+            <Editable as="div" className="stat-value" value={s.value} placeholder="Число" onChange={(v) => L.update(s.id, { value: v })} />
+            <Editable as="div" className="muted" value={s.label} placeholder="Подпись" onChange={(v) => L.update(s.id, { label: v })} />
+          </div>
+        ))}
+        {admin && <AddTile min={110} onClick={() => L.add({ value: '0', label: 'подпись' })}>Добавить показатель</AddTile>}
+      </div>
+    </>
+  );
+}
+function Faq({ b, patch }) {
+  const { admin } = useCtx();
+  const L = listOps(patch, 'items');
+  const [open, setOpen] = useState({});
+  return (
+    <>
+      <Head b={b} patch={patch} />
+      <div className="faq">
+        {b.items.map((it, i) => (
+          <div className="faq-item" key={it.id}>
+            {admin ? (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <Editable as="div" className="faq-qt" value={it.q} placeholder="Вопрос" onChange={(v) => L.update(it.id, { q: v })} />
+                  <ItemTools i={i} count={b.items.length} what="вопрос" onMove={(d) => L.move(it.id, d)} onRemove={() => L.remove(it.id)} />
+                </div>
+                <Editable as="div" className="faq-a" value={it.a} multiline placeholder="Ответ" onChange={(v) => L.update(it.id, { a: v })} />
+              </>
+            ) : (
+              <>
+                <button type="button" className="faq-q" aria-expanded={!!open[it.id]} onClick={() => setOpen((o) => ({ ...o, [it.id]: !o[it.id] }))}>
+                  <span>{it.q}</span><span className="chev" data-open={!!open[it.id]}><Icon n="down" /></span>
+                </button>
+                {open[it.id] && <p className="faq-a">{it.a}</p>}
+              </>
+            )}
+          </div>
+        ))}
+        {admin && <div className="pt-4"><button type="button" className="tool-btn" onClick={() => L.add({ q: 'Новый вопрос', a: 'Ответ на вопрос.' })}><Icon n="plus" />Добавить вопрос</button></div>}
+      </div>
+    </>
+  );
+}
+function Cta({ b, patch }) {
+  return (
+    <>
+      <div className="head">
+        <Editable as="h2" className="h2" value={b.title} placeholder="Заголовок" onChange={(v) => patch({ title: v })} />
+        <Editable as="p" className="lead" value={b.text} multiline placeholder="Текст" onChange={(v) => patch({ text: v })} />
+      </div>
+      <Btn btn={b.btn} onChange={(btn) => patch({ btn })} />
+    </>
+  );
+}
+function Divider({ b }) {
+  return <div className={'divider ' + b.size} role="separator">{b.line && <hr />}</div>;
+}
+const VIEWS = { hero: Hero, text: TextBlock, cards: Cards, image: ImageBlock, split: Split, gallery: Gallery, stats: Stats, faq: Faq, cta: Cta, divider: Divider };
+
+function BlockView({ b, i, count, page, act }) {
+  const { admin } = useCtx();
+  if (!admin && isEmpty(b)) return null;
+  const View = VIEWS[b.type];
+  const patch = (f) => act.patch(page.id, b.id, f);
+  const inner = b.type === 'divider'
+    ? <View b={b} patch={patch} />
+    : <section className={`blk ${b.type}-blk bg-${b.bg} align-${b.align}`}><View b={b} patch={patch} /></section>;
+  if (!admin) return inner;
+  return <BlockFrame b={b} i={i} count={count} act={act} pageId={page.id}>{inner}</BlockFrame>;
+}
+function PageView({ page, act }) {
+  const { admin } = useCtx();
+  const visible = admin || page.blocks.some((b) => !isEmpty(b));
+  return (
+    <>
+      {page.blocks.map((b, i) => <BlockView key={b.id} b={b} i={i} count={page.blocks.length} page={page} act={act} />)}
+      {!visible && <p className="lead py-16">Эта страница пока пуста.</p>}
+      {admin && (
+        <section className="panel mt-4" aria-label="Добавить блок">
+          <span className="label">Добавить блок на страницу «{page.title || 'Без названия'}»</span>
+          <div className="addpick mt-3">
+            {Object.entries(TYPES).map(([type, m]) => (
+              <button key={type} type="button" onClick={() => act.add(page.id, type)}><strong style={{ fontWeight: 500 }}>{m.name}</strong><small>{m.hint}</small></button>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
+/* ---------- Шапка, подвал ---------- */
+function SiteHeader({ cfg, page, set }) {
+  const { go } = useCtx();
+  return (
+    <header className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-6 sm:px-6">
+      <div className="brand min-w-0">
+        {cfg.logo ? <img className="logo" src={cfg.logo} alt="" /> : <span className="mark" aria-hidden="true" />}
+        <Editable value={cfg.brand} placeholder="Название сайта" onChange={(v) => set({ brand: v })} />
+      </div>
+      <nav className="flex flex-wrap gap-x-5 gap-y-1" aria-label="Страницы">
+        {cfg.pages.filter((p) => p.nav).map((p) => (
+          <button key={p.id} type="button" className="navlink" aria-current={p.id === page.id ? 'page' : undefined} onClick={() => go(p.id)}>{p.title || 'Без названия'}</button>
+        ))}
+      </nav>
+    </header>
+  );
+}
+function SiteFooter({ cfg, set }) {
+  const { admin } = useCtx();
+  if (!admin && !cfg.contact && !cfg.footer) return null;
+  return (
+    <footer className="mx-auto w-full max-w-5xl px-4 sm:px-6">
+      <div className="rule mt-10 flex flex-col gap-6 py-10 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-2">
+          <span className="label">Контакты</span>
+          <Editable as="p" className="text-lg font-medium" value={cfg.contact} placeholder="Почта или телефон" onChange={(v) => set({ contact: v })} />
+        </div>
+        <Editable as="p" className="lead text-sm" value={cfg.footer} placeholder="Текст подвала" onChange={(v) => set({ footer: v })} />
+      </div>
+    </footer>
+  );
+}
+
+/* ---------- Верхняя панель ролей ---------- */
+async function doLogin() {
+  const login = prompt('Логин администратора:'); if (!login) return;
+  const password = prompt('Пароль:'); if (password == null) return;
+  const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login, password }) });
+  if (r.ok) location.reload(); else alert((await r.json()).error || 'Ошибка входа');
+}
+async function doLogout() { await fetch('/api/logout', { method: 'POST' }); location.reload(); }
+function RoleBar({ role, setRole, saved }) {
+  const user = window.__BOOT && window.__BOOT.user;
+  const isAdmin = role === 'admin';
+  let status = 'Изменения сохраняются автоматически';
+  if (saved?.ok) status = 'Сохранено в ' + saved.time;
+  if (saved && !saved.ok) status = 'Не сохранено на сервере — проверьте соединение и вход';
+  return (
+    <div className="rolebar">
+      <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="label hidden sm:inline">Режим</span>
+          <div className="seg" role="group" aria-label="Роль пользователя">
+            <button type="button" aria-pressed={!isAdmin} onClick={() => setRole('viewer')}>Гость (Viewer)</button>
+            <button type="button" aria-pressed={isAdmin} onClick={() => (user ? setRole('admin') : doLogin())}>Администратор (Admin)</button>
+          </div>
+        </div>
+        {user && <button type="button" className="tool-btn" onClick={doLogout}>Выйти ({user})</button>}
+        {isAdmin && <span className="status" role="status" data-bad={!!saved && !saved.ok}><span className="dot" aria-hidden="true" /><span>{status}</span></span>}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Панель администратора ---------- */
+const SWATCHES = [
+  ['#4f46e5', 'Индиго'], ['#2563eb', 'Синий'], ['#0d9488', 'Бирюзовый'], ['#16a34a', 'Зелёный'],
+  ['#d97706', 'Янтарный'], ['#e11d48', 'Малиновый'], ['#3f3f46', 'Графит'],
+];
+function HexInput({ value, onValid, id }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <input id={id} className="field hex" value={draft} maxLength={7} spellCheck={false} aria-label="Код цвета в формате HEX"
+      onChange={(e) => {
+        let v = e.target.value.trim();
+        if (v && v[0] !== '#') v = '#' + v;
+        setDraft(v);
+        if (HEX.test(v)) onValid(v.toLowerCase());
+      }} />
+  );
+}
+function ColorPicker({ value, onChange, idBase }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {SWATCHES.map(([hex, name]) => (
+          <button key={hex} type="button" className="swatch" style={{ background: hex }} aria-label={name} title={name} aria-pressed={value.toLowerCase() === hex} onClick={() => onChange(hex)} />
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <input id={idBase + '-picker'} type="color" value={value} aria-label="Выбрать свой цвет" onChange={(e) => onChange(e.target.value)} />
+        <HexInput id={idBase + '-hex'} value={value} onValid={onChange} />
+      </div>
+    </div>
+  );
+}
+
+function PagesTab({ cfg, page, go, act }) {
+  const upd = (f) => act.setPage(page.id, f);
+  const idx = cfg.pages.findIndex((p) => p.id === page.id);
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center gap-2">
+        {cfg.pages.map((p) => (
+          <button key={p.id} type="button" className="chip" aria-pressed={p.id === page.id} onClick={() => go(p.id)}>
+            {p.title || 'Без названия'}{!p.nav && <span className="muted"> · скрыта</span>}
+          </button>
+        ))}
+        <button type="button" className="tool-btn solid" onClick={act.addPage}><Icon n="plus" />Новая страница</button>
+      </div>
+      <div className="grid gap-5 md:grid-cols-[1.2fr_1fr_1.2fr]">
+        <div className="flex min-w-0 flex-col gap-3">
+          <label className="label" htmlFor="page-title">Название страницы</label>
+          <input id="page-title" className="field" value={page.title} placeholder="Название" onChange={(e) => upd({ title: e.target.value })} />
+          <label className="check"><input type="checkbox" checked={page.nav} onChange={(e) => upd({ nav: e.target.checked })} />Показывать в меню сайта</label>
+        </div>
+        <div className="flex min-w-0 flex-col gap-3">
+          <span className="label">Цвет этой страницы</span>
+          {page.accent ? (
+            <>
+              <ColorPicker value={page.accent} onChange={(v) => upd({ accent: v })} idBase="page-accent" />
+              <button type="button" className="tool-btn self-start" onClick={() => upd({ accent: null })}>Как у всего сайта</button>
+            </>
+          ) : (
+            <>
+              <p className="hint">Сейчас страница использует основной цвет сайта.</p>
+              <button type="button" className="tool-btn self-start" onClick={() => upd({ accent: cfg.primary })}>Свой цвет для страницы</button>
+            </>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-col items-start gap-3">
+          <span className="label">Страница</span>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="tool-btn" disabled={idx === 0} onClick={() => act.movePage(page.id, -1)}><Icon n="left" />Влево</button>
+            <button type="button" className="tool-btn" disabled={idx === cfg.pages.length - 1} onClick={() => act.movePage(page.id, 1)}>Вправо<Icon n="right" /></button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="tool-btn" onClick={() => act.dupPage(page.id)}><Icon n="copy" />Дублировать</button>
+            <Confirm variant="tool" text="Удалить" confirmText="Удалить страницу?" disabled={cfg.pages.length <= 1} onConfirm={() => act.delPage(page.id)} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DesignTab({ cfg, set, saved, act }) {
+  const fonts = window.siteTheme.fonts;
+  const size = saved?.size ?? JSON.stringify(cfg).length;
+  const pct = Math.min(100, Math.round((size / QUOTA_CHARS) * 100));
+  return (
+    <div className="grid gap-6 md:grid-cols-3">
+      <div className="flex min-w-0 flex-col gap-3">
+        <span className="label">Основной цвет сайта</span>
+        <ColorPicker value={cfg.primary} onChange={(v) => set({ primary: v })} idBase="primary" />
+      </div>
+      <div className="flex min-w-0 flex-col gap-4">
+        <Choice label="Тема" value={cfg.theme} onChange={(v) => set({ theme: v })} options={[['light', 'Светлая'], ['dark', 'Тёмная']]} />
+        <Choice label="Шрифты" value={cfg.font} onChange={(v) => set({ font: v })} options={Object.entries(fonts).map(([k, f]) => [k, f.label])} />
+        <Choice label="Скругление" value={cfg.radius} onChange={(v) => set({ radius: Number(v) })} options={[['0', 'Острые'], ['8', 'Лёгкие'], ['14', 'Мягкие'], ['24', 'Круглые']]} />
+      </div>
+      <div className="flex min-w-0 flex-col items-start gap-3">
+        <span className="label">Логотип</span>
+        <div className="flex flex-wrap gap-2">
+          <PickButton className="tool-btn" opts={{ max: 320, type: 'image/png', limit: 120000 }} onPick={(u) => set({ logo: u })}><Icon n="upload" />{cfg.logo ? 'Заменить' : 'Загрузить'}</PickButton>
+          {cfg.logo && <button type="button" className="tool-btn" onClick={() => set({ logo: null })}>Убрать</button>}
+        </div>
+        <div className="w-full">
+          <div className="meter" data-warn={pct > 80} role="img" aria-label={'Занято ' + pct + ' процентов хранилища'}><i style={{ width: pct + '%' }} /></div>
+          <p className="hint mt-2">Хранилище браузера: {(size / 1e6).toFixed(1)} из ≈5 МБ. Фото сжимаются при загрузке.</p>
+        </div>
+        <button type="button" className="tool-btn" onClick={act.reset}><Icon n="reset" />Сбросить всё</button>
+      </div>
+    </div>
+  );
+}
+
+function DataTab({ cfg, act, notify }) {
+  const [text, setText] = useState('');
+  const [exportText, setExportText] = useState('');
+  const copy = async () => {
+    const json = JSON.stringify(cfg);
+    try { await navigator.clipboard.writeText(json); notify('Настройки скопированы'); setExportText(''); }
+    catch (e) { setExportText(json); notify('Не удалось скопировать автоматически. Выделите текст ниже и скопируйте его.'); }
+  };
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      <div className="flex min-w-0 flex-col items-start gap-3">
+        <span className="label">Перенос на другое устройство</span>
+        <p className="hint">Данные хранятся только в этом браузере. Скопируйте настройки и вставьте их на другом устройстве справа.</p>
+        <button type="button" className="tool-btn" onClick={copy}><Icon n="copy" />Скопировать настройки</button>
+        {exportText && <textarea id="export-json" className="field" readOnly value={exportText} onFocus={(e) => e.target.select()} aria-label="Настройки для копирования" />}
+      </div>
+      <div className="flex min-w-0 flex-col items-start gap-3">
+        <label className="label" htmlFor="import-json">Вставить настройки</label>
+        <textarea id="import-json" className="field" value={text} onChange={(e) => setText(e.target.value)} placeholder="Вставьте скопированные настройки" />
+        <button type="button" className="tool-btn" disabled={!text.trim()} onClick={() => { if (act.applyImport(text)) setText(''); }}>Применить</button>
+      </div>
+    </div>
+  );
+}
+
+function AdminPanel({ cfg, page, set, go, act, saved, notify }) {
+  const [tab, setTab] = useState('pages');
+  const [open, setOpen] = useState(true);
+  return (
+    <section aria-label="Панель администратора" className="mx-auto w-full max-w-5xl px-4 pt-5 sm:px-6">
+      <div className="panel">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="seg" role="group" aria-label="Разделы панели">
+            {[['pages', 'Страницы'], ['design', 'Оформление'], ['data', 'Данные']].map(([k, t]) => (
+              <button key={k} type="button" aria-pressed={tab === k} onClick={() => { setTab(k); setOpen(true); }}>{t}</button>
+            ))}
+          </div>
+          <button type="button" className="tool-btn" onClick={() => setOpen((o) => !o)}>{open ? 'Свернуть панель' : 'Развернуть панель'}</button>
+        </div>
+        {open && tab === 'pages' && <PagesTab cfg={cfg} page={page} go={go} act={act} />}
+        {open && tab === 'design' && <DesignTab cfg={cfg} set={set} saved={saved} act={act} />}
+        {open && tab === 'data' && <DataTab cfg={cfg} act={act} notify={notify} />}
+      </div>
+      <p className="hint mt-3">
+        Нажмите на любой текст на странице, чтобы изменить его. <kbd>Enter</kbd> сохраняет, <kbd>Esc</kbd> отменяет. В длинных текстах <kbd>Enter</kbd> делает новый абзац, а <kbd>Ctrl</kbd>+<kbd>Enter</kbd> сохраняет.
+      </p>
+    </section>
+  );
+}
+
+/* ---------- Приложение ---------- */
+function App() {
+  const [cfg, setCfg] = useState(loadConfig);
+  const [role, setRole] = useState(loadRole);
+  const [pageId, setPageId] = useState('home');
+  const [saved, setSaved] = useState(null);
+  const [toast, setToast] = useState(null);
+  const skipSave = useRef(true);
+  const admin = role === 'admin';
+  const page = cfg.pages.find((p) => p.id === pageId) || cfg.pages[0];
+
+  const notify = (msg) => setToast({ msg, k: Date.now() });
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4500);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  useLayoutEffect(() => { window.siteTheme.apply(cfg); }, [cfg.theme, cfg.primary, cfg.font, cfg.radius]);
+
+  useEffect(() => {
+    if (skipSave.current) { skipSave.current = false; return; }
+    if (!window.__BOOT || !window.__BOOT.user) return;
+    const t = setTimeout(async () => {
+      try {
+        const json = JSON.stringify(cfg);
+        const r = await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: json });
+        if (r.status === 401) { window.__BOOT.user = null; throw new Error('Сессия истекла — войдите снова'); }
+        if (!r.ok) throw new Error('Ошибка сервера ' + r.status);
+        setSaved({ ok: true, time: nowTime(), size: json.length });
+      } catch (e) { setSaved({ ok: false }); notify('Не сохранено на сервере: ' + e.message); }
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [cfg]);
+
+  
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== KEY || !e.newValue) return;
+      try { skipSave.current = true; setCfg(sanitize(JSON.parse(e.newValue))); } catch (err) { skipSave.current = false; }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const upload = async (file, opts) => {
+    try { return await fileToDataUrl(file, opts); }
+    catch (e) { notify('Не удалось прочитать файл. Выберите изображение JPG, PNG, WebP или GIF.'); return null; }
+  };
+  const go = (id) => { setPageId(id); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+
+  const set = (f) => setCfg((c) => ({ ...c, ...f }));
+  const setPage = (id, f) => setCfg((c) => ({ ...c, pages: c.pages.map((p) => (p.id === id ? { ...p, ...(typeof f === 'function' ? f(p) : f) } : p)) }));
+  const act = {
+    setPage,
+    patch: (pid, bid, f) => setPage(pid, (p) => ({ blocks: p.blocks.map((b) => (b.id === bid ? { ...b, ...(typeof f === 'function' ? f(b) : f) } : b)) })),
+    move: (pid, bid, d) => setPage(pid, (p) => ({ blocks: moved(p.blocks, bid, d) })),
+    dup: (pid, bid) => setPage(pid, (p) => {
+      const i = p.blocks.findIndex((b) => b.id === bid);
+      if (i < 0) return {};
+      const blocks = [...p.blocks]; blocks.splice(i + 1, 0, reid(p.blocks[i])); return { blocks };
+    }),
+    remove: (pid, bid) => setPage(pid, (p) => ({ blocks: p.blocks.filter((b) => b.id !== bid) })),
+    add: (pid, type) => setPage(pid, (p) => ({ blocks: [...p.blocks, newBlock(type)] })),
+    addPage: () => {
+      const id = uid(); const hero = newBlock('hero'); hero.title = 'Новая страница';
+      setCfg((c) => ({ ...c, pages: [...c.pages, { id, title: 'Новая страница', nav: true, accent: null, blocks: [hero] }] }));
+      setPageId(id); window.scrollTo({ top: 0 });
+    },
+    dupPage: (id) => {
+      const src = cfg.pages.find((p) => p.id === id); if (!src) return;
+      const copy = { ...reid(src), title: src.title + ' (копия)' };
+      setCfg((c) => { const i = c.pages.findIndex((p) => p.id === id); const pages = [...c.pages]; pages.splice(i + 1, 0, copy); return { ...c, pages }; });
+      setPageId(copy.id);
+    },
+    delPage: (id) => setCfg((c) => (c.pages.length <= 1 ? c : { ...c, pages: c.pages.filter((p) => p.id !== id) })),
+    movePage: (id, d) => setCfg((c) => ({ ...c, pages: moved(c.pages, id, d) })),
+    reset: () => { setCfg(makeDefault()); setPageId('home'); notify('Сайт сброшен к исходному виду'); },
+    applyImport: (text) => {
+      try { const o = JSON.parse(text); if (!o || !Array.isArray(o.pages)) throw new Error('bad'); setCfg(sanitize(o)); setPageId(o.pages[0]?.id || 'home'); notify('Настройки применены'); return true; }
+      catch (e) { notify('Не удалось прочитать настройки. Вставьте текст целиком, как он был скопирован.'); return false; }
+    },
+  };
+
+  const ctx = { admin, pages: cfg.pages, go, upload, notify };
+  const scopeStyle = page.accent ? { '--primary': page.accent, '--on-primary': window.siteTheme.on(page.accent) } : undefined;
+
+  return (
+    <Ctx.Provider value={ctx}>
+      <div className="flex min-h-screen flex-col">
+        <RoleBar role={role} setRole={setRole} saved={saved} />
+        {admin && <AdminPanel cfg={cfg} page={page} set={set} go={go} act={act} saved={saved} notify={notify} />}
+        <div className="scope flex flex-1 flex-col" style={scopeStyle}>
+          <SiteHeader cfg={cfg} page={page} set={set} />
+          <main className="mx-auto w-full max-w-5xl min-w-0 flex-1 px-4 sm:px-6">
+            <PageView key={page.id} page={page} act={act} />
+          </main>
+          <SiteFooter cfg={cfg} set={set} />
+        </div>
+        {toast && <div className="toast" role="status">{toast.msg}</div>}
+      </div>
+    </Ctx.Provider>
+  );
+}
+
+(async () => {
+  const j = (u) => fetch(u, { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+  const [cfg, me] = await Promise.all([j('/api/config'), j('/api/me')]);
+  window.__BOOT = { cfg, user: me && me.user };
+  if (cfg) window.siteTheme.apply(cfg);
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+})();
+</script>
+
+</body></html>
